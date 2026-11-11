@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TabTap - Scan. Split. Pay.</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body { background: #f4f4f6; color: #1a1a1a; min-height: 100vh; }
+  .app { max-width: 420px; margin: 0 auto; min-height: 100vh; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,.08); }
+  header { background: #0e3a2f; color: #fff; padding: 18px 20px; }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header p { font-size: 13px; opacity: .8; margin-top: 2px; }
+  .screen { padding: 20px; display: none; }
+  .screen.active { display: block; }
+  .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+  .btn-primary { background: #0e3a2f; color: #fff; }
+  .btn-ghost { background: #eef0f2; color: #1a1a1a; }
+  .btn-apple { background: #000; color: #fff; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .qr-box { text-align: center; padding: 24px 0 8px; }
+  .qr-box #qrcode { display: inline-block; padding: 12px; background: #fff; border: 1px solid #e3e3e8; border-radius: 12px; }
+  .qr-note { font-size: 12px; color: #777; margin-top: 10px; }
+  .rest-card { text-align: center; padding: 10px 0 18px; border-bottom: 1px dashed #e0e0e0; margin-bottom: 14px; }
+  .rest-card h2 { font-size: 22px; }
+  .rest-card p { color: #777; font-size: 13px; margin-top: 4px; }
+  .mode-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mode { flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 12px; text-align: center; font-size: 14px; font-weight: 600; cursor: pointer; background: #fff; }
+  .mode.sel { border-color: #0e3a2f; background: #eaf4f0; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #ececf0; border-radius: 12px; margin-bottom: 8px; cursor: pointer; }
+  .item input { width: 20px; height: 20px; accent-color: #0e3a2f; }
+  .item .info { flex: 1; }
+  .item .name { font-size: 15px; font-weight: 600; }
+  .item .sub { font-size: 12px; color: #888; }
+  .item .price { font-weight: 700; font-size: 15px; }
+  .item.paid { opacity: .45; pointer-events: none; }
+  .paid-tag { font-size: 11px; color: #0e3a2f; font-weight: 700; }
+  .tip-row { display: flex; gap: 8px; margin: 8px 0 4px; }
+  .tip { flex: 1; padding: 10px 0; text-align: center; border: 2px solid #e0e0e0; border-radius: 10px; font-weight: 700; cursor: pointer; background: #fff; }
+  .tip.sel { border-color: #0e3a2f; background: #eaf4f0; }
+  .section-label { font-size: 13px; font-weight: 700; color: #555; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .total-box { background: #f7f7f9; border-radius: 12px; padding: 14px; margin-top: 14px; }
+  .total-line { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; color: #555; }
+  .total-line.grand { font-size: 17px; font-weight: 800; color: #1a1a1a; border-top: 1px solid #e0e0e0; margin-top: 6px; padding-top: 8px; }
+  .success-icon { width: 72px; height: 72px; border-radius: 50%; background: #0e3a2f; color: #fff; font-size: 36px; display: flex; align-items: center; justify-content: center; margin: 30px auto 16px; }
+  .success h2 { text-align: center; font-size: 22px; }
+  .success .sub { text-align: center; color: #777; font-size: 14px; margin-top: 6px; }
+  .review-card { border: 1px solid #e5e5ea; border-radius: 12px; padding: 16px; text-align: center; margin-top: 20px; }
+  .review-card p { font-size: 14px; margin-bottom: 10px; }
+  .stars { font-size: 26px; color: #d5d5d5; letter-spacing: 4px; cursor: pointer; }
+  .stars span.on { color: #f4b400; }
+  .spinner { width: 46px; height: 46px; border: 5px solid #e0e0e0; border-top-color: #0e3a2f; border-radius: 50%; margin: 60px auto 20px; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .center { text-align: center; color: #777; font-size: 14px; }
+  .footer-note { text-align: center; font-size: 11px; color: #aaa; padding: 24px 0 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SCREEN: landing (what the QR scan opens) -->
+  <div class="screen active" id="s-landing">
+    <header><h1>TabTap</h1><p>Scan. Split. Pay. No app, no waiting.</p></header>
+    <div class="qr-box">
+      <div id="qrcode"></div>
+      <p class="qr-note">In production this page opens automatically when you scan<br>the QR stand on your table. This is the demo entry point.</p>
+    </div>
+    <div style="padding:0 20px">
+      <button class="btn btn-primary" onclick="go('s-bill')">Simulate scanning Table 7's QR</button>
+    </div>
+    <p class="footer-note">TabTap MVP - concept demo, no real payments</p>
+  </div>
+
+  <!-- SCREEN: bill -->
+  <div class="screen" id="s-bill">
+    <header><h1>Koshary El Tahrir</h1><p>Table 7 - bill #1042</p></header>
+    <div class="rest-card">
+      <h2>Your bill</h2>
+      <p>Everything your table ordered, straight from the POS</p>
+    </div>
+    <div class="mode-row">
+      <div class="mode sel" id="m-split" onclick="setMode('split')">Pay my items</div>
+      <div class="mode" id="m-full" onclick="setMode('full')">Pay full bill</div>
+    </div>
+    <div id="items"></div>
+    <div class="section-label">Add a tip</div>
+    <div class="tip-row">
+      <div class="tip sel" data-tip="0" onclick="setTip(0,this)">No tip</div>
+      <div class="tip" data-tip="5" onclick="setTip(5,this)">5%</div>
+      <div class="tip" data-tip="10" onclick="setTip(10,this)">10%</div>
+      <div class="tip" data-tip="15" onclick="setTip(15,this)">15%</div>
+    </div>
+    <div class="total-box">
+      <div class="total-line"><span>Your items</span><span id="t-items">EGP 0.00</span></div>
+      <div class="total-line"><span>Service (12%)</span><span id="t-service">EGP 0.00</span></div>
+      <div class="total-line"><span>Tip</span><span id="t-tip">EGP 0.00</span></div>
+      <div class="total-line grand"><span>You pay</span><span id="t-total">EGP 0.00</span></div>
+    </div>
+    <button class="btn btn-apple" id="pay-apple" onclick="pay('Apple Pay')">Pay with Apple Pay</button>
+    <button class="btn btn-primary" id="pay-card" onclick="pay('Card')">Pay with card</button>
+    <p class="footer-note">Card or Apple Pay, in the browser. No app install.</p>
+  </div>
+
+  <!-- SCREEN: processing -->
+  <div class="screen" id="s-processing">
+    <div class="spinner"></div>
+    <p class="center">Processing your payment...</p>
+  </div>
+
+  <!-- SCREEN: success -->
+  <div class="screen" id="s-success">
+    <div class="success">
+      <div class="success-icon">&#10003;</div>
+      <h2>Payment successful</h2>
+      <p class="sub" id="success-line">Table 7</p>
+    </div>
+    <div class="total-box" style="margin:20px">
+      <div class="total-line grand"><span id="success-label">You paid</span><span id="success-amount">EGP 0.00</span></div>
+      <div class="total-line"><span>Remaining on table</span><span id="success-remaining">EGP 0.00</span></div>
+    </div>
+    <div class="review-card" style="margin:0 20px">
+      <p>Enjoyed Koshary El Tahrir? A quick review means a lot.</p>
+      <div class="stars" id="stars">
+        <span onclick="rate(1)">&#9733;</span><span onclick="rate(2)">&#9733;</span><span onclick="rate(3)">&#9733;</span><span onclick="rate(4)">&#9733;</span><span onclick="rate(5)">&#9733;</span>
+      </div>
+      <p class="qr-note" id="review-note">The back of the table stand carries the Google review QR.</p>
+    </div>
+    <div style="padding:0 20px">
+      <button class="btn btn-ghost" onclick="resetDemo()">Done</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ITEMS = [
+  { name: 'Koshary Special', sub: 'Large, extra fried onions', price: 95 },
+  { name: 'Koshary Classic', sub: 'Medium', price: 70 },
+  { name: 'Fattah Bel Lahm', sub: 'Rice, bread, beef, garlic sauce', price: 160 },
+  { name: 'Roz Bel Laban', sub: 'Rice pudding, cinnamon', price: 45 },
+  { name: 'Karkadeh', sub: 'Iced hibiscus x2', price: 50 },
+];
+// demo state: one item a friend already paid for
+const PRE_PAID = new Set([3]);
+
+let mode = 'split';
+let tipPct = 0;
+const selected = new Set();
+
+function fmt(n) { return 'EGP ' + n.toFixed(2); }
+
+function renderItems() {
+  const box = document.getElementById('items');
+  box.innerHTML = '';
+  ITEMS.forEach((it, i) => {
+    const paid = PRE_PAID.has(i);
+    const div = document.createElement('div');
+    div.className = 'item' + (paid ? ' paid' : '');
+    div.innerHTML = `
+      <input type="checkbox" ${selected.has(i) ? 'checked' : ''} ${paid ? 'disabled' : ''} onchange="toggle(${i})">
+      <div class="info"><div class="name">${it.name}</div><div class="sub">${it.sub}${paid ? ' &middot; <span class="paid-tag">PAID by friend</span>' : ''}</div></div>
+      <div class="price">${fmt(it.price)}</div>`;
+    if (!paid) div.onclick = (e) => { if (e.target.tagName !== 'INPUT') toggle(i); };
+    box.appendChild(div);
+  });
+  renderTotals();
+}
+
+function toggle(i) {
+  if (PRE_PAID.has(i)) return;
+  selected.has(i) ? selected.delete(i) : selected.add(i);
+  renderItems();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('m-split').classList.toggle('sel', m === 'split');
+  document.getElementById('m-full').classList.toggle('sel', m === 'full');
+  renderTotals();
+}
+
+function setTip(p, el) {
+  tipPct = p;
+  document.querySelectorAll('.tip').forEach(t => t.classList.remove('sel'));
+  el.classList.add('sel');
+  renderTotals();
+}
+
+function baseAmount() {
+  if (mode === 'full') {
+    return ITEMS.reduce((s, it, i) => PRE_PAID.has(i) ? s : s + it.price, 0);
+  }
+  return ITEMS.reduce((s, it, i) => selected.has(i) ? s + it.price : s, 0);
+}
+
+function amounts() {
+  const base = baseAmount();
+  const service = base * 0.12;
+  const tip = (base + service) * tipPct / 100;
+  return { base, service, tip, total: base + service + tip };
+}
+
+function renderTotals() {
+  const a = amounts();
+  document.getElementById('t-items').textContent = fmt(a.base);
+  document.getElementById('t-service').textContent = fmt(a.service);
+  document.getElementById('t-tip').textContent = fmt(a.tip);
+  document.getElementById('t-total').textContent = fmt(a.total);
+  const disabled = a.base <= 0;
+  document.getElementById('pay-apple').disabled = disabled;
+  document.getElementById('pay-card').disabled = disabled;
+}
+
+function pay(method) {
+  go('s-processing');
+  const a = amounts();
+  const remainingBase = mode === 'full'
+    ? 0
+    : ITEMS.reduce((s, it, i) => (PRE_PAID.has(i) || selected.has(i)) ? s : s + it.price, 0);
+  setTimeout(() => {
+    document.getElementById('success-label').textContent = mode === 'full' ? 'Full bill paid' : 'You paid';
+    document.getElementById('success-amount').textContent = fmt(a.total);
+    document.getElementById('success-remaining').textContent = remainingBase === 0 ? 'Fully settled' : fmt(remainingBase * 1.12);
+    document.getElementById('success-line').textContent = 'Table 7 - paid with ' + method;
+    go('s-success');
+  }, 1400);
+}
+
+function rate(n) {
+  const stars = document.querySelectorAll('#stars span');
+  stars.forEach((s, i) => s.classList.toggle('on', i < n));
+  document.getElementById('review-note').textContent = 'Thanks! This would hop over to the restaurant\'s Google review page.';
+}
+
+function resetDemo() {
+  selected.clear();
+  mode = 'split';
+  tipPct = 0;
+  document.getElementById('m-split').classList.add('sel');
+  document.getElementById('m-full').classList.remove('sel');
+  document.querySelectorAll('.tip').forEach((t, i) => t.classList.toggle('sel', i === 0));
+  document.querySelectorAll('#stars span').forEach(s => s.classList.remove('on'));
+  renderItems();
+  go('s-landing');
+}
+
+function go(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+renderItems();
+try {
+  new QRCode(document.getElementById('qrcode'), { text: location.href, width: 140, height: 140 });
+} catch (e) { document.getElementById('qrcode').innerHTML = '<div style="width:140px;height:140px;border:2px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px">QR here</div>'; }
+</script>
+</body>
+</html>
